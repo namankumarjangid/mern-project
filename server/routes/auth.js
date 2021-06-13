@@ -1,16 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require("jsonwebtoken");
 
 const bcrypt = require('bcryptjs');
-const { OAuth2Client, LoginTicket } = require('google-auth-library')
+const { OAuth2Client } = require('google-auth-library')
 const authenticate = require("../middleware/authenticate");
 
 const client = new OAuth2Client(process.env.googleClientID)
 
 require('../db/conn');
 const User = require("../model/userSchema");
-const { response } = require('express');
 
 router.get('/', (req, res) => {
     res.send(`Hello world from the server rotuer js`);
@@ -18,7 +16,7 @@ router.get('/', (req, res) => {
 
 
 
-// using promises  
+// using promises  -- 1st method 
 
 // router.post('/register', (req, res) => {
 
@@ -44,7 +42,9 @@ router.get('/', (req, res) => {
 
 // });
 
-// Async-Await 
+
+
+// Async-Await  -- 2nd method
 
 router.post('/register', async (req, res) => {
 
@@ -184,14 +184,14 @@ router.post("/googlelogin", async (req, res) => {
 
         const { name, email, picture } = ticket.getPayload();
 
-        const userLogin = await User.findOne({ email: email });
+        const userExist = await User.findOne({ email: email });
 
-        // console.log(userLogin);
+        // console.log(userExist);
 
-        if (userLogin) {
+        if (userExist) {
 
             // need to genereate the token and stored cookie after the password match 
-            token = await userLogin.generateAuthToken();
+            token = await userExist.generateAuthToken();
             console.log(token);
 
             res.cookie("jwtoken", token, {
@@ -202,66 +202,26 @@ router.post("/googlelogin", async (req, res) => {
             res.json({ message: "user Signin Successfully" });
         }
         else {
-            res.status(400).json({ error: "Invalid Credientials " });
+            // res.status(400).json({ error: "Invalid Credientials " });
+            const userLogin = new User({ name, email });
+            await userLogin.save();
+
+            // need to genereate the token and stored cookie after the password match 
+            token = await userLogin.generateAuthToken();
+            // console.log(token);
+
+            res.cookie("jwtoken", token, {
+                expires: new Date(Date.now() + 25892000000),
+                httpOnly: true
+            });
+
+            res.json({ message: "user Signin Successfully" });
         }
     }
     catch (error) {
         console.log(error)
     }
-
-
-
 })
-
-
-
-
-
-
-// router.post("/googlelogin", (req, res) => {
-//     const { token } = req.body;
-//     client.verifyIdToken({ idToken: token, audience: process.env.googleClientID }).then(response => {
-//         const { email_verified, name, email } = response.payload;
-//         if (email_verified) {
-//             User.findOne({ email }).exec((err, user) => {
-//                 if (err) {
-//                     return res.status(400).json({
-//                         error: "Something went wrong..."
-//                     })
-//                 } else {
-//                     if (user) {
-//                         const token = jwt.sign({ _id: user._id }, process.env.SECRET_KEY, { expiresIn: '7d' })
-//                         const { _id, name, email } = user;
-
-//                         res.json({
-//                             token,
-//                             user: { _id, name, email }
-//                         })
-//                     } else {
-//                         // let password = email + process.env.SECRET_KEY;
-
-//                         let newUser = new User({ name, email });
-//                         newUser.save((err, data) => {
-//                             if (err) {
-//                                 return res.status(400).json({
-//                                     error: "Something went wrong..."
-//                                 })
-//                             }
-//                             const token = jwt.sign({ _id: data._id }, process.env.SECRET_KEY, { expiresIn: '7d' })
-//                             const { _id, name, email } = newUser;
-
-//                             res.json({
-//                                 token,
-//                                 user: { _id, name, email }
-//                             })
-//                         })
-//                     }
-
-//                 }
-//             })
-//         }
-//     })
-// })
 
 
 module.exports = router;
